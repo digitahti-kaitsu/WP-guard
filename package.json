@@ -1,0 +1,11 @@
+{
+  "name": "wp-guard",
+  "version": "1.0.0",
+  "private": true,
+  "description": "WordPress-sivustojen valvonta Vercel Cronilla",
+  "type": "module",
+  "dependencies": {
+    "@vercel/blob": "^0.27.0",
+    "resend": "^4.0.0"
+  }
+}

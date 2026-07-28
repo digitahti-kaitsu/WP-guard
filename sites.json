@@ -1,0 +1,12 @@
+[
+  {
+    "name": "Esimerkkiyhdistys",
+    "url": "https://esimerkkiyhdistys.fi/",
+    "token": "VAIHDA-TOKEN-1"
+  },
+  {
+    "name": "Toinen sivusto",
+    "url": "https://www.toinensivusto.fi/",
+    "token": "VAIHDA-TOKEN-2"
+  }
+]
