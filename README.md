@@ -147,6 +147,8 @@ Options -Indexes
 
 **HSTS kahdessa vaiheessa.** Yllä oleva `max-age=300` on tarkoituksella viisi minuuttia. HSTS on lupaus selaimelle, ettei sivustoa käytetä koskaan HTTP:n yli, eikä lupausta voi perua – selain muistaa sen `max-age`-ajan riippumatta siitä mitä palvelin myöhemmin vastaa. Seuraa vuorokausi ettei mikään hajoa ja nosta vasta sitten arvoon `31536000`. Älä lisää `includeSubDomains`-määrettä ellei jokainen aliverkkotunnus toimi varmasti HTTPS:llä.
 
+Tarkistus huomauttaa lyhyestä `max-age`-arvosta niin kauan kuin se on voimassa, ja näyttää arvon raportissa. Se on tarkoituksellista: testiarvo jää muuten helposti pysyväksi, jolloin otsake näyttää suojaukselta suojaamatta miltään. Löydös katoaa itsestään kun arvo on vähintään vuosi.
+
 **WordPressissä** lohko sijoitetaan `# BEGIN WordPress` -lohkon **ulkopuolelle**. WordPress kirjoittaa oman lohkonsa uudelleen aina kun pysyvien osoitteiden asetukset tallennetaan.
 
 **Lue olemassa oleva `.htaccess` ennen kuin korvaat sen.** Siellä on tyypillisesti cPanelin generoima PHP-versiolohko (`# php -- BEGIN cPanel-generated handler`), uudelleenohjauksia tai vanhan sivuston 301-perintöä. Ne on säilytettävä sanatarkasti.
