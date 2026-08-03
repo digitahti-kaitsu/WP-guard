@@ -53,7 +53,22 @@ async function auditSite(site) {
 
   // 2) Tietoturvaotsakkeet
   const h = home.headers;
-  if (!h.get('strict-transport-security')) findings.push('⚠️ HSTS-otsake (Strict-Transport-Security) puuttuu');
+  const hsts = h.get('strict-transport-security');
+  if (!hsts) {
+    findings.push('⚠️ HSTS-otsake (Strict-Transport-Security) puuttuu');
+  } else {
+    // Pelkkä otsakkeen olemassaolo ei riitä. Lyhyt max-age näyttää
+    // suojaukselta mutta ei ehdi suojata miltään, ja tyypillinen syy on
+    // käyttöönoton testiarvo joka on jäänyt nostamatta.
+    const maxAge = Number(hsts.match(/max-age\s*=\s*"?(\d+)"?/i)?.[1]);
+    if (!Number.isFinite(maxAge)) {
+      findings.push(`⚠️ HSTS-otsakkeesta puuttuu kelvollinen max-age: "${hsts}"`);
+    } else if (maxAge < 86400) {
+      findings.push(`⚠️ HSTS voimassa vain ${kesto(maxAge)} – liian lyhyt suojatakseen. Nosta arvoon 31536000`);
+    } else if (maxAge < 31536000) {
+      findings.push(`ℹ️ HSTS voimassa ${kesto(maxAge)} – suositus on vuosi (31536000)`);
+    }
+  }
   if (!h.get('x-content-type-options')) findings.push('⚠️ X-Content-Type-Options: nosniff puuttuu');
   if (!h.get('x-frame-options') && !(h.get('content-security-policy') || '').includes('frame-ancestors')) {
     findings.push('⚠️ Clickjacking-suoja puuttuu (X-Frame-Options tai CSP frame-ancestors)');
@@ -103,6 +118,13 @@ async function auditSite(site) {
   }
 
   return { ...site, verified: true, findings };
+}
+
+// Sekunnit luettavaan muotoon raporttia varten.
+function kesto(sekunnit) {
+  if (sekunnit < 3600) return `${sekunnit} s`;
+  if (sekunnit < 86400) return `${Math.round(sekunnit / 3600)} h`;
+  return `${Math.round(sekunnit / 86400)} vrk`;
 }
 
 async function fetchPage(url, opts = {}) {
