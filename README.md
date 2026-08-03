@@ -124,7 +124,7 @@ curl -H "Authorization: Bearer SINUN_CRON_SECRET" \
 
 ## Löydösten korjaaminen
 
-Suurin osa raportin löydöksistä korjaantuu yhdellä `.htaccess`-lohkolla. Se käy sellaisenaan sekä WordPress-sivustoille että staattisille sivuille Apache- ja LiteSpeed-palvelimilla.
+Suurin osa raportin löydöksistä korjaantuu yhdellä `.htaccess`-lohkolla. Se käy sellaisenaan sekä WordPress-sivustoille että staattisille sivuille Apache- ja LiteSpeed-palvelimilla. Vercelissä ja muilla alustoilla otsakkeet asetetaan muualla – ks. alempaa.
 
 ```apache
 # Estä hakemistolistaus, jottei kansioiden sisältöä voi selata.
@@ -153,6 +153,25 @@ Tarkistus huomauttaa lyhyestä `max-age`-arvosta niin kauan kuin se on voimassa,
 
 **Lue olemassa oleva `.htaccess` ennen kuin korvaat sen.** Siellä on tyypillisesti cPanelin generoima PHP-versiolohko (`# php -- BEGIN cPanel-generated handler`), uudelleenohjauksia tai vanhan sivuston 301-perintöä. Ne on säilytettävä sanatarkasti.
 
+**Vercelissä `.htaccess` ei toimi lainkaan.** Siellä otsakkeet asetetaan projektin `vercel.json`-tiedostossa. HSTS:ää ei tarvitse asettaa itse – Vercel lähettää sen automaattisesti:
+
+```json
+{
+  "headers": [
+    {
+      "source": "/(.*)",
+      "headers": [
+        { "key": "X-Content-Type-Options", "value": "nosniff" },
+        { "key": "X-Frame-Options", "value": "SAMEORIGIN" },
+        { "key": "Referrer-Policy", "value": "strict-origin-when-cross-origin" }
+      ]
+    }
+  ]
+}
+```
+
+Jätä `X-Frame-Options` pois, jos sivua on tarkoitus voida upottaa iframeen muille sivustoille.
+
 `xmlrpc.php`-esto on jätetty lohkon ulkopuolelle tarkoituksella: se rikkoo Jetpackin ja WordPressin mobiilisovelluksen. Jos kumpaakaan ei käytetä, lisää:
 
 ```apache
@@ -176,6 +195,22 @@ Jos tagi löytyy näin mutta ei ilman kyselymerkkijonoa, kyse on välimuistista 
 **Välimuistitasoja voi olla useita.** WordPressin lisäosan purge ei kosketa palveluntarjoajan proxy-välimuistia. Katso otsakkeista kumpi on kyseessä: `x-litespeed-cache: hit` on lisäosan tai palvelimen välimuisti, `x-proxy-cache: STALE` on erillinen käänteisproxy sen edessä.
 
 **`Vary: User-Agent` -ansa.** Jotkin proxyt pitävät erillistä välimuistimerkintää jokaiselle selaintunnisteelle. Jos testaat omalla skriptilläsi eri tunnisteella kuin mitä WP-guard käyttää, voit katsella eri välimuistimerkintää kuin varsinainen tarkistus – ja päätyä väärään johtopäätökseen. Käytä testatessa samaa tunnistetta kuin `api/security.js`.
+
+**Otsakkeet eivät ilmesty, vaikka `.htaccess` on oikein.** Osa webhotelleista ajaa nginxin Apachen edessä ja tarjoilee staattiset `.html`-tiedostot suoraan levyltä. Silloin `.htaccess` ei ehdi vaikuttaa niihin lainkaan, vaikka se toimisi kaikelle muulle.
+
+Tunnistat tilanteen vertaamalla etusivun ja jonkin kuvatiedoston vastausotsakkeita:
+
+| | Apachen kautta | nginx suoraan |
+|---|---|---|
+| ETag | vahva, esim. `"2fb-6575fef..."` | heikko, `W/"6a68738e-d79"` |
+| `accept-ranges` | on | ei |
+| `x-accel-version` | on | ei |
+
+Jos kuva saa otsakkeet mutta etusivu ei, tämä on syy. Korjaus on joko palveluntarjoajan nginx-konfiguraatio – kysy tukipalvelusta, useimmissa hallintapaneeleissa tätä ei voi itse säätää – tai `index.html`:n nimeäminen `index.php`:ksi, jolloin pyyntö kulkee Apachen kautta. Muista poistaa `index.html`, ei riitä että lisää `index.php`:n. Jos sivusto käännetään build-työkalulla, nimeäminen kuuluu julkaisuprosessiin, muuten seuraava julkaisu palauttaa `index.html`:n ja otsakkeet katoavat huomaamatta.
+
+Sama voi iskeä WordPress-sivustoon, jos sille otetaan käyttöön levylle kirjoittava koko sivun välimuisti. Tarkista otsakkeet aina välimuistilisäosan käyttöönoton jälkeen.
+
+Meta-tageilla tätä ei voi kiertää: `X-Frame-Options` ei toimi `<meta http-equiv>` -muodossa lainkaan, eikä CSP:n `frame-ancestors` – se on määritelty ohitettavaksi meta-muodossa.
 
 **Cron ei aja.** Cronit ajetaan vain tuotantodeploysta, eivät preview-haaroista. Tarkista **Settings → Cron Jobs** ja ajojen lokit sieltä.
 
