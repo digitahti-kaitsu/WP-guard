@@ -108,10 +108,11 @@ Ilman `Authorization`-otsaketta endpointin pitää vastata `401` – se on nopea
 
 Kaikki passiivisia GET-pyyntöjä:
 
-- **Tietoturvaotsakkeet:** HSTS, X-Content-Type-Options, clickjacking-suoja (X-Frame-Options tai CSP `frame-ancestors`), Referrer-Policy
+- **Tietoturvaotsakkeet:** HSTS (myös `max-age`-arvo), X-Content-Type-Options, clickjacking-suoja (X-Frame-Options tai CSP `frame-ancestors`), Referrer-Policy
 - **HTTP → HTTPS -uudelleenohjaus**
 - **SSL-sertifikaatin vanheneminen**, varoitus 14 pv etukäteen
-- **WP-tietovuodot:** generator-meta, avoin `/readme.html`, julkinen `debug.log`, hakemistolistaus uploads-kansiossa, `xmlrpc.php`
+- **WordPress-version ajantasaisuus** – uusin vakaa versio haetaan WordPressin omasta rajapinnasta ja verrataan sivuston versioon. Yksi kutsu per ajo. Jos rajapinta ei vastaa, tarkistus ohitetaan hiljaisesti eikä väärää hälytystä synny
+- **WP-tietovuodot:** avoin `/readme.html`, julkinen `debug.log`, hakemistolistaus uploads-kansiossa, `xmlrpc.php`
 
 Löydökset on merkitty: 🔴 korjaa heti, ⚠️ kannattaa korjata, ℹ️ tiedoksi.
 
@@ -180,7 +181,11 @@ Jätä `X-Frame-Options` pois, jos sivua on tarkoitus voida upottaa iframeen mui
 </Files>
 ```
 
-Generator-metaa ja `X-Powered-By`-otsaketta ei kannata jahdata. Ne ovat versiotiedon piilottelua, eikä hyökkääjä tarvitse niitä. Jälkimmäinen on usein webhotellin asettama eikä poistu `.htaccess`illa.
+**Älä piilota generator-metaa.** Se on ainoa tapa, jolla tarkistus näkee sivuston WordPress-version – ilman sitä versiotarkistus lakkaa toimimasta. Versiotiedon piilottaminen ei myöskään suojaa miltään: botit kokeilevat haavoittuvuuksia versiosta riippumatta. Vanhentunut ydin on moninkertaisesti isompi riski kuin näkyvä versionumero.
+
+Moni tietoturvalisäosa tarjoutuu piilottamaan generator-metan. Tämän työkalun kanssa se on huono kauppa.
+
+`X-Powered-By`-otsaketta ei kannata jahdata samasta syystä, ja se on usein webhotellin asettama eikä poistu `.htaccess`illa.
 
 ## Vianetsintä
 

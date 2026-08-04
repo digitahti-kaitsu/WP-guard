@@ -23,9 +23,12 @@ export default async function handler(req, res) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
 
+  // Uusin WordPress-versio haetaan kerran per ajo, ei kerran per sivusto.
+  const uusinWp = await haeUusinWordPress();
+
   const reports = [];
   for (const site of sites) {
-    reports.push(await auditSite(site));
+    reports.push(await auditSite(site, uusinWp));
   }
 
   await sendReport(reports);
@@ -35,7 +38,7 @@ export default async function handler(req, res) {
   });
 }
 
-async function auditSite(site) {
+async function auditSite(site, uusinWp) {
   const findings = [];
   const u = new URL(site.url);
 
@@ -96,9 +99,21 @@ async function auditSite(site) {
     findings.push(`🔴 SSL-sertifikaatti vanhenee ${cert.daysLeft} pv kuluttua (${cert.validTo})`);
   }
 
-  // 5) WordPress-tietovuodot
-  if (/<meta[^>]+name=["']generator["'][^>]+WordPress/i.test(home.body)) {
-    findings.push('ℹ️ Generator-meta paljastaa WordPress-version');
+  // 5) WordPress-versio ja tietovuodot.
+  // Versio saadaan vain generator-metasta. Se on samalla syy olla
+  // piilottamatta tagia: vanhentunut ydin on isompi riski kuin se, että
+  // versionumero näkyy – hyökkääjän botti kokeilee joka tapauksessa.
+  const gen = home.body.match(/<meta[^>]+name=["']generator["'][^>]*content=["']WordPress\s+([\d.]+)/i);
+  if (gen) {
+    const versio = gen[1];
+    if (uusinWp && vertaaVersioita(versio, uusinWp) < 0) {
+      // Eri pää- tai alaversio tarkoittaa kuukausien päivitysvelkaa.
+      // Pelkkä korjausversio jäljessä on tyypillisesti päivien.
+      const isoLoikka = versio.split('.').slice(0, 2).join('.') !== uusinWp.split('.').slice(0, 2).join('.');
+      findings.push(`${isoLoikka ? '🔴' : '⚠️'} WordPress ${versio} on vanhentunut – uusin on ${uusinWp}`);
+    } else {
+      findings.push(`ℹ️ Generator-meta paljastaa WordPress-version (${versio})${uusinWp ? ' – ajan tasalla' : ''}`);
+    }
   }
   const readme = await fetchPage(new URL('/readme.html', site.url).href);
   if (readme.ok && /WordPress/i.test(readme.body)) {
@@ -118,6 +133,35 @@ async function auditSite(site) {
   }
 
   return { ...site, verified: true, findings };
+}
+
+// WordPressin oma rajapinta kertoo uusimman vakaan version. Jos kutsu
+// epäonnistuu, versiotarkistus ohitetaan hiljaisesti: väärä hälytys
+// vanhentuneesta ytimestä olisi pahempi kuin puuttuva tieto.
+async function haeUusinWordPress() {
+  try {
+    const resp = await fetch('https://api.wordpress.org/core/version-check/1.7/', {
+      signal: AbortSignal.timeout(TIMEOUT_MS),
+      headers: { 'User-Agent': 'wp-guard/1.0 (version check)' },
+    });
+    if (!resp.ok) return null;
+    const data = await resp.json();
+    return data.offers?.[0]?.current ?? null;
+  } catch {
+    return null;
+  }
+}
+
+// Vertaa versionumeroita osa kerrallaan, jotta 6.10 on uudempi kuin 6.9.
+// Palauttaa negatiivisen luvun kun a on vanhempi kuin b.
+function vertaaVersioita(a, b) {
+  const osatA = a.split('.').map(Number);
+  const osatB = b.split('.').map(Number);
+  for (let i = 0; i < Math.max(osatA.length, osatB.length); i++) {
+    const ero = (osatA[i] ?? 0) - (osatB[i] ?? 0);
+    if (ero !== 0) return ero;
+  }
+  return 0;
 }
 
 // Sekunnit luettavaan muotoon raporttia varten.
