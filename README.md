@@ -201,6 +201,8 @@ Jos tagi löytyy näin mutta ei ilman kyselymerkkijonoa, kyse on välimuistista 
 
 **`Vary: User-Agent` -ansa.** Jotkin proxyt pitävät erillistä välimuistimerkintää jokaiselle selaintunnisteelle. Jos testaat omalla skriptilläsi eri tunnisteella kuin mitä WP-guard käyttää, voit katsella eri välimuistimerkintää kuin varsinainen tarkistus – ja päätyä väärään johtopäätökseen. Käytä testatessa samaa tunnistetta kuin `api/security.js`.
 
+**Otsakkeet katosivat, vaikka mitään ei muutettu.** Todennäköisin syy on sivuston siirto tai palautus varmuuskopiosta. `.htaccess` ei ole osa teemaa, mutta se on osa tiedostojärjestelmää, joten migraatiotyökalu korvaa kohteen tiedoston lähteen versiolla – ja kehitysympäristössä näitä sääntöjä harvoin on. Tarkista otsakkeet, `readme.html`, `xmlrpc.php` ja hakemistolistaus aina uudistuksen, siirron tai palautuksen jälkeen. Viikkoraportti kertoo tästä kyllä, mutta katkos ehtii kestää päiviä.
+
 **Otsakkeet eivät ilmesty, vaikka `.htaccess` on oikein.** Osa webhotelleista ajaa nginxin Apachen edessä ja tarjoilee staattiset `.html`-tiedostot suoraan levyltä. Silloin `.htaccess` ei ehdi vaikuttaa niihin lainkaan, vaikka se toimisi kaikelle muulle.
 
 Tunnistat tilanteen vertaamalla etusivun ja jonkin kuvatiedoston vastausotsakkeita:
