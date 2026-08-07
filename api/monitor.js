@@ -10,6 +10,14 @@ import sites from '../sites.json' with { type: 'json' };
 const STATE_BLOB = 'wp-guard-state.json';
 const TIMEOUT_MS = 10000;
 
+// Montako peräkkäistä epäonnistunutta tarkistusta vaaditaan ennen hälytystä.
+// Webhotellit tuottavat satunnaisia hetkellisiä hidasteluja, joissa sivu ei
+// vastaa aikarajassa mutta on seuraavassa hetkessä taas pystyssä. Yhden ajon
+// perusteella hälyttäminen tuottaa niistä turhia viestejä, ja turha viesti on
+// kalliimpi kuin myöhässä tullut: se opettaa sivuuttamaan koko hälytyksen.
+// Hintana on, että aito katko havaitaan yhtä ajoväliä myöhemmin.
+const VAHVISTUKSIA = 2;
+
 export default async function handler(req, res) {
   // Suojaus: vain Vercelin cron (tai sinä itse CRON_SECRETillä) saa ajaa tämän.
   // Puuttuva muuttuja on aina 401 – muuten vertailuarvoksi tulisi merkkijono
@@ -27,13 +35,17 @@ export default async function handler(req, res) {
   const newState = {};
 
   for (const r of results) {
-    newState[r.url] = { up: r.up, status: r.status, checkedAt: new Date().toISOString() };
-    const prev = prevState[r.url];
-    // Ilmoita vain tilan muutoksesta. Ensimmäisellä ajolla (prev puuttuu)
-    // ilmoitetaan vain jos sivu on nurin.
-    if (!prev && !r.up) changes.push({ ...r, type: 'down' });
-    else if (prev && prev.up && !r.up) changes.push({ ...r, type: 'down' });
-    else if (prev && !prev.up && r.up) changes.push({ ...r, type: 'up' });
+    const { fails, alerted, halytys } = paatteleTila(prevState[r.url], r.up);
+    if (halytys === 'down') changes.push({ ...r, type: 'down', fails });
+    else if (halytys === 'up') changes.push({ ...r, type: 'up' });
+
+    newState[r.url] = {
+      up: r.up,
+      status: r.status,
+      checkedAt: new Date().toISOString(),
+      fails,
+      alerted,
+    };
   }
 
   if (changes.length > 0) {
@@ -45,8 +57,40 @@ export default async function handler(req, res) {
   return res.status(200).json({
     checked: results.length,
     down: results.filter(r => !r.up).map(r => r.name),
+    // Epäonnistuneet mutta vielä vahvistusta vailla – näkyy käsin ajettaessa,
+    // jottei tarvitse arvailla miksi hälytystä ei tullut.
+    pending: Object.entries(newState)
+      .filter(([, s]) => !s.up && !s.alerted)
+      .map(([url, s]) => `${url} (${s.fails}/${VAHVISTUKSIA})`),
     alertsSent: changes.length,
   });
+}
+
+// Päättelee sivuston uuden tilan ja sen, lähteekö hälytys.
+//
+// Kolme sääntöä:
+//  1. Hälytys "down" vasta kun epäonnistumisia on VAHVISTUKSIA peräkkäin.
+//  2. Hälytys lähtee kerran katkoa kohti, ei joka ajolla – siitä huolehtii
+//     alerted-lippu, joka on eri asia kuin sivuston tila.
+//  3. "up" lähtee vain jos katkosta oli ilmoitettu. Muuten hetkellisestä
+//     hidastelusta tulisi "palasi"-viesti ilman edeltävää "kaatui"-viestiä.
+//
+// Vanhoissa tilatiedostoissa ei ole kenttiä fails/alerted; ne oletetaan
+// nolliksi, jolloin nurin oleva sivusto vain aloittaa laskurin alusta.
+//
+// Vietynä, jotta tämän voi testata ilman verkkoa tai sähköpostia.
+export function paatteleTila(prev, up) {
+  const edellinen = prev ?? {};
+  const fails = up ? 0 : (edellinen.fails ?? 0) + 1;
+  const oliHalytetty = edellinen.alerted ?? false;
+
+  if (!up && fails >= VAHVISTUKSIA && !oliHalytetty) {
+    return { fails, alerted: true, halytys: 'down' };
+  }
+  if (up && oliHalytetty) {
+    return { fails, alerted: false, halytys: 'up' };
+  }
+  return { fails, alerted: oliHalytetty, halytys: null };
 }
 
 async function checkSite(site) {
@@ -80,14 +124,16 @@ async function sendAlert(changes) {
     ? `🔴 NURIN: ${downs.map(d => d.name).join(', ')}`
     : `🟢 Palasi: ${ups.map(u => u.name).join(', ')}`;
 
+  // Vahvistusten määrä kerrotaan viestissä, jotta näkee ettei kyse ole
+  // yksittäisestä hetkellisestä hidastelusta vaan toistuvasta katkosta.
   const lines = changes.map(c =>
     c.type === 'down'
-      ? `🔴 ${c.name} EI VASTAA (${c.status})\n   ${c.url}`
+      ? `🔴 ${c.name} EI VASTAA (${c.status})\n   Epäonnistui ${c.fails} peräkkäisessä tarkistuksessa.\n   ${c.url}`
       : `🟢 ${c.name} palasi linjoille (HTTP ${c.status})\n   ${c.url}`
   );
 
   await resend.emails.send({
-    from: process.env.ALERT_FROM,      // esim. 'WP-guard <valvonta@esimerkki.fi>'
+    from: process.env.ALERT_FROM,      // esim. 'WP-guard <vahti@digitahti.fi>'
     to: process.env.ALERT_TO,          // oma sähköpostisi
     subject,
     text: `${lines.join('\n\n')}\n\n— WP-guard, ${new Date().toLocaleString('fi-FI', { timeZone: 'Europe/Helsinki' })}`,

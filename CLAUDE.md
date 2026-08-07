@@ -9,7 +9,7 @@ WordPress-sivustojen valvonta Vercel-projektina. Kaksi cron-ajettavaa serverless
 
 - **Omistajuusvarmistus on pakollinen tietoturvatarkistuksessa.** `api/security.js` ajaa tarkistukset vain, jos sivuston etusivulta löytyy `<meta name="wp-guard-verify" content="TOKEN">` ja token täsmää `sites.json`-tiedostoon. Tätä ei saa poistaa tai ohittaa – se takaa, ettei tarkistus koskaan kohdistu sivustoon, joka ei ole omassa ylläpidossa. Tagi tuotetaan sivustolla MU-pluginilla `wp-guard-meta.php`.
 - **Kaikki tarkistukset ovat passiivisia** (GET-pyyntöjä ja otsakkeiden lukua). Ei brute forcea, ei haavoittuvuusskannausta, ei POST-pyyntöjä kohdesivuille.
-- **Ei postitulvaa**: uptime-hälytys vain tilan muutoksesta; ensimmäinen ajo hälyttää vain jos sivu on valmiiksi nurin.
+- **Ei postitulvaa**: uptime-hälytys vain tilan muutoksesta, ja vasta kun sivusto on epäonnistunut `VAHVISTUKSIA` (2) peräkkäisessä tarkistuksessa. Hälytys lähtee kerran katkoa kohti – siitä huolehtii tilan `alerted`-lippu, joka on eri asia kuin sivuston tila. Logiikka on funktiossa `paatteleTila`, joka on viety testattavaksi.
 - Molemmat endpointit vaativat `Authorization: Bearer CRON_SECRET` -otsakkeen. Vercel lisää sen cron-kutsuihin automaattisesti, kun `CRON_SECRET`-ympäristömuuttuja on asetettu. Puuttuva muuttuja johtaa aina 401:een – ilman erillistä tarkistusta vertailuarvoksi tulisi merkkijono `"Bearer undefined"`.
 
 ## Ympäristömuuttujat (Vercel)

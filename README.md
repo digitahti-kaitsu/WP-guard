@@ -20,7 +20,7 @@ Kolme asiaa, jotka on tarkoituksella tehty näin:
 
 **Kaikki tarkistukset ovat passiivisia.** Tavallisia GET-pyyntöjä ja otsakkeiden lukua. Ei brute forcea, ei haavoittuvuusskannausta, ei POST-pyyntöjä kohdesivuille. Tämä ei ole tunkeutumistestaustyökalu eikä sellaiseksi kannata muokata.
 
-**Ei postitulvaa.** Uptime-hälytys vain tilan muutoksesta. Ensimmäinen ajo hälyttää vain, jos sivu on jo valmiiksi nurin. Valvonta jota ei jaksa lukea ei valvo mitään.
+**Ei postitulvaa.** Uptime-hälytys lähtee vain tilan muutoksesta, ja vasta kun sivusto on epäonnistunut kahdessa peräkkäisessä tarkistuksessa. Webhotellit tuottavat satunnaisia hetkellisiä hidasteluja, joissa sivu ei vastaa aikarajassa mutta on seuraavassa hetkessä taas pystyssä – yhden ajon perusteella hälyttäminen tuottaisi niistä turhia viestejä. Hinta on, että aito katko havaitaan yhtä ajoväliä myöhemmin. Se on tietoinen valinta: turha hälytys on kalliimpi kuin myöhässä tullut, koska se opettaa sivuuttamaan koko viestin. Valvonta jota ei jaksa lukea ei valvo mitään.
 
 ## Vaatimukset
 
@@ -100,7 +100,7 @@ curl -H "Authorization: Bearer SINUN_CRON_SECRET" \
   https://PROJEKTISI.vercel.app/api/monitor
 ```
 
-Aja kahdesti: ensimmäinen kirjoittaa tilan Blobiin, toinen lukee sen takaisin. Vasta toinen ajo todistaa Blob-yhteyden toimivaksi molempiin suuntiin. Vastauksesta näkee montako sivua tarkistettiin ja mitkä ovat nurin.
+Aja kahdesti: ensimmäinen kirjoittaa tilan Blobiin, toinen lukee sen takaisin. Vasta toinen ajo todistaa Blob-yhteyden toimivaksi molempiin suuntiin. Vastauksesta näkee montako sivua tarkistettiin, mitkä ovat nurin ja mitkä odottavat vahvistusta (`pending`-kenttä muodossa `osoite (1/2)`) – jälkimmäinen kertoo, miksi hälytystä ei ole vielä tullut.
 
 Ilman `Authorization`-otsaketta endpointin pitää vastata `401` – se on nopea tapa varmistaa, että deploy on elossa ja suojaus toimii.
 
