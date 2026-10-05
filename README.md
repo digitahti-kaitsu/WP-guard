@@ -234,6 +234,33 @@ Nopein tapa on ajaa `/api/security` käsin heti julkaisun jälkeen. Yksi ajo kat
 
 **Kestävä korjaus** on laittaa sama `.htaccess`-lohko myös siihen ympäristöön, josta siirtopaketti rakennetaan. Silloin lohko tulee siirron mukana sen sijaan että katoaisi siinä, eikä migraatiotyökalun `.htaccess`-asetuksella ole väliä.
 
+Lohko on sama kuin tuotannossa – se on koko pointti. Mikä tahansa ero ympäristöjen välillä tuo ongelman takaisin:
+
+```apache
+# WP-guard: tietoturva-asetukset.
+# Pidä tämä lohko IDENTTISENÄ kehitys- ja tuotantoympäristössä, jotta
+# siirto ei pudota sääntöjä pois. WordPressissä # BEGIN WordPress
+# -lohkon ULKOPUOLELLE, muuten WP ylikirjoittaa sen.
+Options -Indexes
+
+<Files "readme.html">
+    Require all denied
+</Files>
+
+<Files "xmlrpc.php">
+    Require all denied
+</Files>
+
+<IfModule mod_headers.c>
+    Header always set X-Content-Type-Options "nosniff"
+    Header always set X-Frame-Options "SAMEORIGIN"
+    Header always set Referrer-Policy "strict-origin-when-cross-origin"
+    Header always set Strict-Transport-Security "max-age=31536000"
+</IfModule>
+```
+
+HSTS-rivi ei haittaa kehitysympäristössä: selain **ohittaa** otsakkeen kun se tulee salaamattoman HTTP:n yli (RFC 6797), joten paikallinen ympäristö ei pinniydy mihinkään. Jos kehitysympäristö on HTTPS:n takana omalla verkkotunnuksellaan, se pinniytyy vuodeksi – käytännössä harmitonta, koska sillä on jo sertifikaatti.
+
 ## Kehitys
 
 ```bash
