@@ -239,8 +239,8 @@ Lohko on sama kuin tuotannossa – se on koko pointti. Mikä tahansa ero ympäri
 ```apache
 # WP-guard: tietoturva-asetukset.
 # Pidä tämä lohko IDENTTISENÄ kehitys- ja tuotantoympäristössä, jotta
-# siirto ei pudota sääntöjä pois. WordPressissä # BEGIN WordPress
-# -lohkon ULKOPUOLELLE, muuten WP ylikirjoittaa sen.
+# siirto ei pudota sääntöjä pois. Oltava WordPressin oman BEGIN/END-
+# merkkilohkon ULKOPUOLELLA, muuten WordPress ylikirjoittaa sen.
 Options -Indexes
 
 <Files "readme.html">
