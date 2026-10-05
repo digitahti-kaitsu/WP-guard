@@ -156,11 +156,15 @@ async function auditSite(site, uusinWp, edellisetLisaosat) {
     try {
       const lista = JSON.parse(users.body);
       if (Array.isArray(lista) && lista.length > 0) {
+        // HUOM: slug on user_nicename, EI kirjautumistunnusta (user_login).
+        // WordPress ei paljasta kirjautumistunnusta REST-rajapinnassa. Nicename
+        // johdetaan kuitenkin oletuksena kirjautumistunnuksesta, joten se on
+        // vahva vihje – ei todiste. Älä muotoile tätä "tunnuksiksi".
         const nimet = lista.map(u => u?.slug).filter(Boolean);
-        findings.push(`⚠️ Käyttäjätunnukset listattavissa (/wp-json/wp/v2/users): ${nimet.join(', ')}`);
+        findings.push(`⚠️ Käyttäjien nimet listattavissa (/wp-json/wp/v2/users): ${nimet.join(', ')}. Rajapinta ei paljasta kirjautumistunnusta, mutta WordPress johtaa nämä siitä oletuksena.`);
         const oletukset = nimet.filter(n => /^(admin|administrator|root|test|wordpress)$/i.test(n));
         if (oletukset.length > 0) {
-          findings.push(`🔴 Oletuskäyttäjätunnus käytössä: ${oletukset.join(', ')} – bottien ensimmäinen arvaus, vaihda tunnus`);
+          findings.push(`ℹ️ Käyttäjänimi "${oletukset.join('", "')}" viittaa alkuperäiseen asennustiliin. Tarkista WP-administa, onko sen kirjautumistunnus yhä oletus – adminin käyttäjälista näyttää kirjautumistunnuksen, tämä rajapinta ei.`);
         }
       }
     } catch { /* ei JSONia – ei löydöstä */ }
