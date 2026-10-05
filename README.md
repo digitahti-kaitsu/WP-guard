@@ -112,6 +112,8 @@ Kaikki passiivisia GET-pyyntöjä:
 - **HTTP → HTTPS -uudelleenohjaus**
 - **SSL-sertifikaatin vanheneminen**, varoitus 14 pv etukäteen
 - **WordPress-version ajantasaisuus** – uusin vakaa versio haetaan WordPressin omasta rajapinnasta ja verrataan sivuston versioon. Yksi kutsu per ajo. Jos rajapinta ei vastaa, tarkistus ohitetaan hiljaisesti eikä väärää hälytystä synny
+- **Käyttäjätunnusten listaus** `/wp-json/wp/v2/users` -rajapinnasta. WordPress ei pidä tunnusten näkymistä haavoittuvuutena, mutta se antaa väsytyshyökkäykselle puolet kirjautumistiedoista valmiina. Oletustunnukset (`admin`, `root`, `test`…) merkitään erikseen 🔴
+- **Lisäosien muutokset** – uusi tai kadonnut lisäosa edelliseen ajoon verrattuna. Tuntematon lisäosa on yksi selvimmistä murron merkeistä. Luettelo talletetaan omaan blobiinsa (`wp-guard-plugins.json`), ja ensimmäinen ajo vain tallentaa lähtötilanteen. Huomaa rajoitus: näkyvät vain ne lisäosat jotka lataavat jotain etusivulle, joten esimerkiksi lomakelisäosa voi puuttua luettelosta – siksi "uusi lisäosa" on ⚠️ eikä 🔴
 - **WP-tietovuodot:** avoin `/readme.html`, julkinen `debug.log`, hakemistolistaus uploads-kansiossa, `xmlrpc.php`
 
 Löydökset on merkitty: 🔴 korjaa heti, ⚠️ kannattaa korjata, ℹ️ tiedoksi.

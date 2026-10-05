@@ -10,10 +10,15 @@
 // lukua, ei mitään tunkeutuvaa.
 
 import tls from 'node:tls';
+import { put, list } from '@vercel/blob';
 import { Resend } from 'resend';
 import sites from '../sites.json' with { type: 'json' };
 
 const TIMEOUT_MS = 8000;
+
+// Lisäosaluettelo edellisestä ajosta. Oma blobinsa, ei sama kuin
+// monitorin tilatiedosto: eri elinkaari ja eri ajoväli.
+const PLUGIN_BLOB = 'wp-guard-plugins.json';
 
 export default async function handler(req, res) {
   // Puuttuva CRON_SECRET on aina 401, ks. api/monitor.js.
@@ -26,10 +31,21 @@ export default async function handler(req, res) {
   // Uusin WordPress-versio haetaan kerran per ajo, ei kerran per sivusto.
   const uusinWp = await haeUusinWordPress();
 
+  const prevPlugins = await loadPlugins();
+  const newPlugins = {};
+
   const reports = [];
   for (const site of sites) {
-    reports.push(await auditSite(site, uusinWp));
+    const report = await auditSite(site, uusinWp, prevPlugins[site.url]);
+    // Vain varmistetuilta sivustoilta: muuten ohitetun sivuston tyhjä
+    // luettelo näyttäisi seuraavalla kerralla siltä että kaikki lisäosat
+    // ovat uusia.
+    if (report.verified) newPlugins[site.url] = report.plugins;
+    else if (prevPlugins[site.url]) newPlugins[site.url] = prevPlugins[site.url];
+    reports.push(report);
   }
+
+  await savePlugins(newPlugins);
 
   await sendReport(reports);
   return res.status(200).json({
@@ -38,20 +54,20 @@ export default async function handler(req, res) {
   });
 }
 
-async function auditSite(site, uusinWp) {
+async function auditSite(site, uusinWp, edellisetLisaosat) {
   const findings = [];
   const u = new URL(site.url);
 
   // 1) Omistajuusvarmistus: hae etusivu ja etsi verify-meta-tagi
   const home = await fetchPage(site.url);
   if (!home.ok) {
-    return { ...site, verified: false, findings: [], error: `Etusivua ei saatu haettua (${home.error})` };
+    return { ...site, verified: false, findings: [], plugins: {}, error: `Etusivua ei saatu haettua (${home.error})` };
   }
   const metaRe = /<meta[^>]+name=["']wp-guard-verify["'][^>]+content=["']([^"']+)["']/i;
   const altRe = /<meta[^>]+content=["']([^"']+)["'][^>]+name=["']wp-guard-verify["']/i;
   const m = home.body.match(metaRe) || home.body.match(altRe);
   if (!m || m[1] !== site.token) {
-    return { ...site, verified: false, findings: [], error: 'Verify-tagi puuttuu tai token ei täsmää – ohitettu' };
+    return { ...site, verified: false, findings: [], plugins: {}, error: 'Verify-tagi puuttuu tai token ei täsmää – ohitettu' };
   }
 
   // 2) Tietoturvaotsakkeet
@@ -132,7 +148,81 @@ async function auditSite(site, uusinWp) {
     findings.push('ℹ️ xmlrpc.php vastaa – jos ei käytössä (Jetpack tms.), kannattaa estää');
   }
 
-  return { ...site, verified: true, findings };
+  // 6) Käyttäjätunnusten listaus REST-rajapinnasta. WordPress ei pidä
+  // tunnusten näkymistä haavoittuvuutena, mutta se antaa väsytyshyökkäykselle
+  // puolet kirjautumistiedoista valmiina.
+  const users = await fetchPage(new URL('/wp-json/wp/v2/users', site.url).href);
+  if (users.ok) {
+    try {
+      const lista = JSON.parse(users.body);
+      if (Array.isArray(lista) && lista.length > 0) {
+        const nimet = lista.map(u => u?.slug).filter(Boolean);
+        findings.push(`⚠️ Käyttäjätunnukset listattavissa (/wp-json/wp/v2/users): ${nimet.join(', ')}`);
+        const oletukset = nimet.filter(n => /^(admin|administrator|root|test|wordpress)$/i.test(n));
+        if (oletukset.length > 0) {
+          findings.push(`🔴 Oletuskäyttäjätunnus käytössä: ${oletukset.join(', ')} – bottien ensimmäinen arvaus, vaihda tunnus`);
+        }
+      }
+    } catch { /* ei JSONia – ei löydöstä */ }
+  }
+
+  // 7) Lisäosien muutokset. Uusi tuntematon lisäosa on Kyberturvallisuus-
+  // keskuksen mukaan yksi selvimmistä murron merkeistä.
+  const plugins = tunnistaLisaosat(home.body);
+  if (edellisetLisaosat) {
+    const uudet = Object.keys(plugins).filter(k => !(k in edellisetLisaosat));
+    const poistuneet = Object.keys(edellisetLisaosat).filter(k => !(k in plugins));
+    if (uudet.length > 0) {
+      findings.push(`⚠️ Uusi lisäosa näkyvissä: ${uudet.join(', ')} – jos et asentanut sitä, selvitä mistä se tuli`);
+    }
+    if (poistuneet.length > 0) {
+      findings.push(`ℹ️ Lisäosa ei enää näy: ${poistuneet.join(', ')}`);
+    }
+  }
+
+  return { ...site, verified: true, findings, plugins };
+}
+
+// Poimii etusivun lähdekoodista lisäosien nimet ja versiot. Versio tulee
+// liitetiedostojen ?ver=-parametrista. Näkee vain ne lisäosat jotka lataavat
+// jotain etusivulle – esimerkiksi lomakelisäosa voi puuttua, jos etusivulla
+// ei ole lomaketta. Siksi "uusi lisäosa" on ⚠️ eikä 🔴.
+function tunnistaLisaosat(html) {
+  const ver = {};
+  for (const m of html.matchAll(/\/wp-content\/plugins\/([a-z0-9_-]+)\/[^"'\s]*?(?:\?|&amp;|&)ver=([0-9][0-9a-z.\-]*)/gi)) {
+    ver[m[1]] = m[2];
+  }
+  for (const m of html.matchAll(/\/wp-content\/plugins\/([a-z0-9_-]+)\//gi)) {
+    if (!(m[1] in ver)) ver[m[1]] = '?';
+  }
+  return ver;
+}
+
+// Lisäosaluettelon tallennus. Jos luku epäonnistuu, palautetaan tyhjä:
+// silloin ensimmäinen ajo ei tuota vääriä "uusi lisäosa" -löydöksiä, koska
+// vertailua ei tehdä ilman edellistä luetteloa.
+async function loadPlugins() {
+  try {
+    const { blobs } = await list({ prefix: PLUGIN_BLOB });
+    if (blobs.length === 0) return {};
+    const resp = await fetch(blobs[0].url, { cache: 'no-store' });
+    return await resp.json();
+  } catch {
+    return {};
+  }
+}
+
+async function savePlugins(state) {
+  try {
+    await put(PLUGIN_BLOB, JSON.stringify(state), {
+      access: 'public',
+      addRandomSuffix: false,
+      allowOverwrite: true,
+      contentType: 'application/json',
+    });
+  } catch {
+    // Tallennuksen epäonnistuminen ei saa estää raportin lähtemistä.
+  }
 }
 
 // WordPressin oma rajapinta kertoo uusimman vakaan version. Jos kutsu

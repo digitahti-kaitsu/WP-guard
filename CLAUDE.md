@@ -3,7 +3,7 @@
 WordPress-sivustojen valvonta Vercel-projektina. Kaksi cron-ajettavaa serverless-funktiota:
 
 - `api/monitor.js` – uptime-tarkistus 10 min välein (`*/10 * * * *`). Vertaa tilaa edelliseen ajoon (Vercel Blob, tiedosto `wp-guard-state.json`) ja lähettää sähköpostin Resendillä VAIN tilan muuttuessa (kaatui/palasi).
-- `api/security.js` – passiivinen tietoturvatarkistus maanantaisin klo 05 UTC (`0 5 * * 1`). Lähettää aina viikkoraportin.
+- `api/security.js` – passiivinen tietoturvatarkistus maanantaisin klo 05 UTC (`0 5 * * 1`). Lähettää aina viikkoraportin. Pitää omaa tilaansa Blobissa (`wp-guard-plugins.json`) lisäosamuutosten havaitsemiseen – eri tiedosto kuin monitorin tila.
 
 ## Arkkitehtuuriperiaatteet
 
