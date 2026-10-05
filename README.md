@@ -201,7 +201,7 @@ Jos tagi löytyy näin mutta ei ilman kyselymerkkijonoa, kyse on välimuistista 
 
 **`Vary: User-Agent` -ansa.** Jotkin proxyt pitävät erillistä välimuistimerkintää jokaiselle selaintunnisteelle. Jos testaat omalla skriptilläsi eri tunnisteella kuin mitä WP-guard käyttää, voit katsella eri välimuistimerkintää kuin varsinainen tarkistus – ja päätyä väärään johtopäätökseen. Käytä testatessa samaa tunnistetta kuin `api/security.js`.
 
-**Otsakkeet katosivat, vaikka mitään ei muutettu.** Todennäköisin syy on sivuston siirto tai palautus varmuuskopiosta. `.htaccess` ei ole osa teemaa, mutta se on osa tiedostojärjestelmää, joten migraatiotyökalu korvaa kohteen tiedoston lähteen versiolla – ja kehitysympäristössä näitä sääntöjä harvoin on. Tarkista otsakkeet, `readme.html`, `xmlrpc.php` ja hakemistolistaus aina uudistuksen, siirron tai palautuksen jälkeen. Viikkoraportti kertoo tästä kyllä, mutta katkos ehtii kestää päiviä.
+**Otsakkeet katosivat, vaikka mitään ei muutettu.** Todennäköisin syy on sivuston siirto tai palautus varmuuskopiosta. `.htaccess` ei ole osa teemaa, mutta se on osa tiedostojärjestelmää, joten migraatiotyökalu korvaa kohteen tiedoston lähteen versiolla – ja kehitysympäristössä näitä sääntöjä harvoin on. Ks. julkaisun tarkistuslista alla.
 
 **Otsakkeet eivät ilmesty, vaikka `.htaccess` on oikein.** Osa webhotelleista ajaa nginxin Apachen edessä ja tarjoilee staattiset `.html`-tiedostot suoraan levyltä. Silloin `.htaccess` ei ehdi vaikuttaa niihin lainkaan, vaikka se toimisi kaikelle muulle.
 
@@ -220,6 +220,19 @@ Sama voi iskeä WordPress-sivustoon, jos sille otetaan käyttöön levylle kirjo
 Meta-tageilla tätä ei voi kiertää: `X-Frame-Options` ei toimi `<meta http-equiv>` -muodossa lainkaan, eikä CSP:n `frame-ancestors` – se on määritelty ohitettavaksi meta-muodossa.
 
 **Cron ei aja.** Cronit ajetaan vain tuotantodeploysta, eivät preview-haaroista. Tarkista **Settings → Cron Jobs** ja ajojen lokit sieltä.
+
+## Julkaisun tarkistuslista
+
+Aja tämä **heti** siirron, uudistuksen tai varmuuskopiopalautuksen jälkeen – älä jää odottamaan seuraavaa viikkoraporttia:
+
+1. **`.htaccess`-lohko paikallaan:** otsakkeet 4/4, `readme.html` ja `xmlrpc.php` estetty, hakemistolistaus pois
+2. **Verify-tagi yhä etusivulla.** MU-plugin selviää siirrosta yleensä, mutta tarkista silti – ilman tagia tietoturvatarkistus ohittaa sivuston kokonaan
+3. **`generator`-meta tallella.** Uusi teema poistaa sen helposti, jolloin versiotarkistus sokeutuu. Tämä on neljästä helpoin jäädä huomaamatta, koska puuttuva meta ei tuota löydöstä vaan näyttää raportissa puhtaalta riviltä
+4. **HSTS suoraan arvoon `31536000`,** ei testiarvoon: selaimilla on lupaus jo voimassa aiemmasta, joten kaksivaiheisuutta ei tarvita palautuksessa
+
+Nopein tapa on ajaa `/api/security` käsin heti julkaisun jälkeen. Yksi ajo kattaa kaikki neljä kohtaa.
+
+**Kestävä korjaus** on laittaa sama `.htaccess`-lohko myös siihen ympäristöön, josta siirtopaketti rakennetaan. Silloin lohko tulee siirron mukana sen sijaan että katoaisi siinä, eikä migraatiotyökalun `.htaccess`-asetuksella ole väliä.
 
 ## Kehitys
 
